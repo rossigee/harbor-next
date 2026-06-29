@@ -9,7 +9,6 @@ vars:
 tasks:
   check:
     desc: "Verify commercial release patches apply cleanly"
-    dir: ..
     preconditions:
       - sh: command -v git >/dev/null 2>&1
         msg: "git is required"
@@ -17,7 +16,7 @@ tasks:
         msg: "Task is required"
     cmds:
       - |
-        repo_root=$(pwd -P)
+        repo_root=$(git rev-parse --show-toplevel)
         tmp_root="${repo_root}/{{.RELEASE_READY_TMP_DIR}}"
         worktree_dir="${tmp_root}/worktree"
         patches_repo_dir="${tmp_root}/patches-repo"
@@ -45,24 +44,30 @@ tasks:
 
   apply-commercial-patches:
     desc: "Apply commercial release patches to the current worktree"
-    dir: ..
     preconditions:
       - sh: command -v git >/dev/null 2>&1
         msg: "git is required"
       - sh: command -v stg >/dev/null 2>&1
         msg: "StGit is required. Install the stg command before applying release patches."
-      - sh: test -z "$(git -C '{{.RELEASE_PATCH_TARGET_DIR | default "."}}' status --porcelain)"
-        msg: "release patch application requires a clean worktree"
     cmds:
       - |
+        repo_root=$(git rev-parse --show-toplevel)
+
         patch_target_dir="{{.RELEASE_PATCH_TARGET_DIR | default "."}}"
-        if [ "${patch_target_dir#/}" = "${patch_target_dir}" ]; then
-          patch_target_dir="$(pwd -P)/${patch_target_dir}"
+        if [ "${patch_target_dir}" = "." ]; then
+          patch_target_dir="${repo_root}"
+        elif [ "${patch_target_dir#/}" = "${patch_target_dir}" ]; then
+          patch_target_dir="${repo_root}/${patch_target_dir}"
+        fi
+
+        if [ -n "$(git -C "${patch_target_dir}" status --porcelain)" ]; then
+          echo "release patch application requires a clean worktree" >&2
+          exit 1
         fi
 
         patches_repo_dir="{{.RELEASE_PATCHES_TMP_DIR}}"
         if [ "${patches_repo_dir#/}" = "${patches_repo_dir}" ]; then
-          patches_repo_dir="$(pwd -P)/${patches_repo_dir}"
+          patches_repo_dir="${repo_root}/${patches_repo_dir}"
         fi
         series_file="${patches_repo_dir}/{{.PATCHES_SERIES}}"
         series_dir="$(dirname "${series_file}")"

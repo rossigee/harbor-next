@@ -59,8 +59,8 @@ const (
 	// whose status is outdated and needs to be refreshed asynchronously. Each set
 	// member encodes "<execution_id>:<vendor_type>".
 	execStatusOutdateSetKey = "execution:status_outdate"
-	// execStatusOutdateBatchSize is the max number of members consumed from the
-	// set in a single SPOP call.
+	// execStatusOutdateBatchSize is the max number of members scanned from the
+	// set in one Redis SSCAN call.
 	execStatusOutdateBatchSize = 100
 )
 
@@ -478,20 +478,9 @@ func parseExecStatusOutdateMember(member string) (int64, string, error) {
 	return id, parts[1], nil
 }
 
-// requeueOutdateMembers puts members back to the set so that they can be
-// retried in next round. Errors are only logged because the next producer
-// (AsyncRefreshStatus) will eventually re-add the member when the task
-// state changes again.
-func requeueOutdateMembers(ctx context.Context, client *redis.Client, members []string) {
-	if len(members) == 0 {
-		return
-	}
-	args := make([]any, 0, len(members))
-	for _, m := range members {
-		args = append(args, m)
-	}
-	if err := client.SAdd(ctx, execStatusOutdateSetKey, args...).Err(); err != nil {
-		log.Errorf("failed to requeue %d outdate execution members, error: %v", len(members), err)
+func removeExecStatusOutdateMember(ctx context.Context, client *redis.Client, member string) {
+	if err := client.SRem(ctx, execStatusOutdateSetKey, member).Err(); err != nil {
+		log.Errorf("failed to remove outdate execution member %s from set %s, error: %v", member, execStatusOutdateSetKey, err)
 	}
 }
 
@@ -507,10 +496,10 @@ func (e *executionDAO) AsyncRefreshStatus(ctx context.Context, id int64, vendor 
 	return nil
 }
 
-// scanAndRefreshOutdateStatus pops a batch of outdate execution members from
-// the redis set and refreshes their status to db. SPOP is atomic, so when
-// multiple core instances run this task concurrently, each member is consumed
-// by exactly one instance, which avoids duplicated refresh work.
+// scanAndRefreshOutdateStatus scans outdate execution members from the redis
+// set and refreshes their status to db. Members are removed only after a
+// successful refresh or a permanent failure, so transient refresh failures stay
+// queued for the next periodic scan.
 //
 // Kept private because it is only intended to be triggered by the periodic
 // task registered in init().
@@ -522,22 +511,24 @@ func scanAndRefreshOutdateStatus(ctx context.Context) {
 	}
 
 	var succeed, failed int64
+	var cursor uint64
 	for {
-		members, err := client.SPopN(ctx, execStatusOutdateSetKey, int64(execStatusOutdateBatchSize)).Result()
-		if err != nil && err != redis.Nil {
-			log.Errorf("failed to SPOP outdate executions from set %s, error: %v", execStatusOutdateSetKey, err)
+		members, nextCursor, err := client.SScan(ctx, execStatusOutdateSetKey, cursor, "", int64(execStatusOutdateBatchSize)).Result()
+		if err != nil {
+			log.Errorf("failed to SSCAN outdate executions from set %s, error: %v", execStatusOutdateSetKey, err)
 			return
 		}
-		if len(members) == 0 {
+		cursor = nextCursor
+		if len(members) == 0 && cursor == 0 {
 			break
 		}
 
-		var toRequeue []string
 		for _, member := range members {
 			execID, vendor, err := parseExecStatusOutdateMember(member)
 			if err != nil {
 				// drop invalid members, do not requeue
 				log.Errorf("failed to parse outdate member %s, error: %v", member, err)
+				removeExecStatusOutdateMember(ctx, client, member)
 				failed++
 				continue
 			}
@@ -546,16 +537,17 @@ func scanAndRefreshOutdateStatus(ctx context.Context) {
 			if err != nil {
 				if errors.IsNotFoundErr(err) {
 					// execution has been deleted, drop the member silently
+					removeExecStatusOutdateMember(ctx, client, member)
 					succeed++
 					continue
 				}
 				log.Errorf("failed to refresh the status of execution %d, error: %v", execID, err)
-				// transient failure, put it back so that another round can retry
-				toRequeue = append(toRequeue, member)
+				// transient failure, leave the member queued for the next round
 				failed++
 				continue
 			}
 
+			removeExecStatusOutdateMember(ctx, client, member)
 			succeed++
 			log.Debugf("refresh the status of execution %d successfully, new status: %s", execID, currentStatus)
 			// run the status change post function; only log errors, do not requeue
@@ -566,10 +558,7 @@ func scanAndRefreshOutdateStatus(ctx context.Context) {
 			}
 		}
 
-		requeueOutdateMembers(ctx, client, toRequeue)
-
-		// fewer members than the batch size means the set has been drained
-		if len(members) < execStatusOutdateBatchSize {
+		if cursor == 0 {
 			break
 		}
 	}

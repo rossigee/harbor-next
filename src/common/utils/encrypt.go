@@ -19,7 +19,7 @@ import (
 	"crypto/cipher"
 	"crypto/pbkdf2"
 	"crypto/rand"
-	"crypto/sha1" // nolint:gosec // G505: blocklisted import kept for legacy PBKDF2-SHA1 password verification only
+	"crypto/sha1" //nolint:gosec // G505: blocklisted import kept for legacy PBKDF2-SHA1 password verification only
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -61,7 +61,7 @@ const (
 // PBKDF2-HMAC-SHA256 with a high iteration count instead (see
 // pkg/user/manager.go). Please don't use SHA1 to hash any new secrets.
 var HashAlg = map[string]func() hash.Hash{
-	SHA1:         sha1.New, // nolint:gosec // G401/G505: weak hash kept only for legacy PBKDF2 password verification
+	SHA1:         sha1.New, //nolint:gosec // G401/G505: weak hash kept only for legacy PBKDF2 password verification
 	SHA256:       sha256.New,
 	PBKDF2SHA256: sha256.New,
 }

@@ -52,6 +52,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Prepare base branch for scanning
         run: |
@@ -264,6 +265,8 @@ jobs:
           git push origin "HEAD:${ZERO_CVE_BRANCH}"
 
       - name: Create or update rolling PR
+        env:
+          DEPENDENCY_CHANGED: ${{ steps.dependency-changes.outputs.changed }}
         run: |
           pr_number=$(gh pr list \
             --head "${ZERO_CVE_BRANCH}" \
@@ -272,7 +275,7 @@ jobs:
             --json number \
             --jq '.[0].number // ""')
 
-          if [ "${{ steps.dependency-changes.outputs.changed }}" = "true" ]; then
+          if [ "${DEPENDENCY_CHANGED}" = "true" ]; then
             if [ -n "${pr_number}" ]; then
               gh pr edit "${pr_number}" --title "${ZERO_CVE_PR_TITLE}" --body-file "${ZERO_CVE_REPORT_DIR}/pr-body.md"
             else

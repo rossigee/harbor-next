@@ -340,7 +340,11 @@ function parseGovulncheck(findings, modulesBefore) {
     }
     const osv = osvByID.get(vulnerabilityID);
     const trace = Array.isArray(finding.trace) ? finding.trace : [];
-    const moduleFrame = trace.find((frame) => frame.module && frame.module !== 'stdlib')
+    const affectedPackages = new Set((osv?.affected || [])
+      .map((affected) => affected?.package?.name || affected?.package?.Name || '')
+      .filter(Boolean));
+    const moduleFrame = (affectedPackages.has('stdlib') ? trace.find((frame) => frame.module === 'stdlib') : null)
+      || trace.find((frame) => frame.module && frame.module !== 'stdlib')
       || trace.find((frame) => frame.module)
       || null;
     const packageName = moduleFrame?.module || deriveModuleFromOSV(osv) || 'unknown';
@@ -365,7 +369,21 @@ function parseGovulncheck(findings, modulesBefore) {
 
 function parseTrivy(reportName, source, findings) {
   const report = parseJSONFile(path.join(reportsDir, reportName));
-  if (!report || report.__parseError) {
+  if (!report) {
+    return;
+  }
+  if (report.__parseError) {
+    addFinding(findings, {
+      source,
+      target: reportName,
+      type: 'scanner-error',
+      vulnerabilityID: `TRIVY_REPORT_PARSE_ERROR_${reportName.replace(/[^A-Za-z0-9]/g, '_')}`,
+      packageName: 'trivy-report',
+      installedVersion: '',
+      fixedVersion: '',
+      severity: 'UNKNOWN',
+      title: `Failed to parse Trivy report ${reportName}: ${report.__parseError}`,
+    });
     return;
   }
 

@@ -64,6 +64,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.checkout_ref }}
+          persist-credentials: false
 
       - name: Install Task
         uses: ./.github/actions/setup-task
@@ -102,11 +103,21 @@ jobs:
           private-key: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
           owner: container-registry
           repositories: 8gcr
+          permission-contents: read
 
-      - name: Apply commercial patches
+      - name: Clone commercial patches
         env:
           PATCHES_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: task --taskfile taskfile/release-ready.yml apply-commercial-patches
+        run: |
+          git clone --depth=1 \
+            "https://x-access-token:${PATCHES_TOKEN}@github.com/container-registry/8gcr" \
+            "${RUNNER_TEMP}/commercial-patches"
+          git -C "${RUNNER_TEMP}/commercial-patches" remote remove origin
+
+      - name: Apply commercial patches
+        run: |
+          task --taskfile taskfile/release-ready.yml apply-commercial-patches \
+            PATCHES_CLONE_URL="${RUNNER_TEMP}/commercial-patches"
 
       - name: Load versions
         run: grep -E '^[A-Z_]+=' versions.env >> "$GITHUB_ENV"
@@ -173,9 +184,11 @@ jobs:
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
+        env:
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           mkdir -p "${{ runner.temp }}/digests"
-          digest="${{ steps.build.outputs.digest }}"
+          digest="${BUILD_DIGEST}"
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
       - name: Upload digest

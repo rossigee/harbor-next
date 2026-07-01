@@ -74,6 +74,39 @@ func TestMiddleware(t *testing.T) {
 	}
 }
 
+func TestMiddlewareAllowsPlaintextHTTPOrigin(t *testing.T) {
+	conf := map[string]any{
+		common.ExtEndpoint: "http://localhost:4200",
+	}
+	config.InitWithSettings(conf)
+	resetMiddleware()
+	defer func() {
+		config.InitWithSettings(map[string]any{
+			common.ExtEndpoint: "https://host01.com",
+		})
+		resetMiddleware()
+	}()
+
+	srv := Middleware()(&handler{})
+	getReq := httptest.NewRequest(http.MethodGet, "http://localhost:4200/c/login", nil)
+	getRec := httptest.NewRecorder()
+	srv.ServeHTTP(getRec, getReq)
+
+	token := getRec.Result().Header.Get(tokenHeader)
+	assert.NotEmpty(t, token)
+
+	postReq := httptest.NewRequest(http.MethodPost, "http://localhost:4200/c/login", nil)
+	postReq.Header.Set("Origin", "http://localhost:4200")
+	postReq.Header.Set(tokenHeader, token)
+	for _, cookie := range getRec.Result().Cookies() {
+		postReq.AddCookie(cookie)
+	}
+
+	postRec := httptest.NewRecorder()
+	srv.ServeHTTP(postRec, postReq)
+	assert.Equal(t, http.StatusOK, postRec.Result().StatusCode)
+}
+
 func TestMiddlewareInvalidKey(t *testing.T) {
 	originalEnv := os.Getenv(csrfKeyEnv)
 	defer os.Setenv(csrfKeyEnv, originalEnv)

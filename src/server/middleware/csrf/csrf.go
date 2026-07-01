@@ -86,6 +86,9 @@ func Middleware() func(handler http.Handler) http.Handler {
 			csrf.Path("/"))
 	})
 	return middleware.New(func(rw http.ResponseWriter, req *http.Request, next http.Handler) {
+		if !secureFlag {
+			req = csrf.PlaintextHTTPRequest(req)
+		}
 		protect(attach(next)).ServeHTTP(rw, req)
 	}, csrfSkipper)
 }

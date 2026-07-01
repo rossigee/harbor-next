@@ -45,7 +45,7 @@ func (suite *RegistryTestSuite) ptrStr(s string) *string { return &s }
 
 // TestPingRegistryByIDIgnoresOverrides guards against CVE-class credential
 // exfiltration: a caller referencing an existing registry by id must not be able
-// to override its saved connection settings (url, insecure, ca certificate) and so
+// to override its saved connection settings (type, url, insecure, ca certificate) and so
 // redirect the health check (and the saved credentials) to an untrusted endpoint.
 func (suite *RegistryTestSuite) TestPingRegistryByIDIgnoresOverrides() {
 	suite.Security.On("IsAuthenticated").Return(true).Once()
@@ -62,6 +62,7 @@ func (suite *RegistryTestSuite) TestPingRegistryByIDIgnoresOverrides() {
 	insecure := true
 	res, err := suite.PostJSON("/registries/ping", &models.RegistryPing{
 		ID:            &id,
+		Type:          suite.ptrStr("docker-registry"),
 		URL:           suite.ptrStr("https://attacker.example.com"),
 		Insecure:      &insecure,
 		CaCertificate: suite.ptrStr("-----BEGIN CERTIFICATE-----\nattacker\n-----END CERTIFICATE-----"),
@@ -70,6 +71,7 @@ func (suite *RegistryTestSuite) TestPingRegistryByIDIgnoresOverrides() {
 	suite.Equal(200, res.StatusCode)
 	suite.Require().NotNil(pinged)
 	// every supplied override is ignored; the saved settings are used
+	suite.Equal("harbor", pinged.Type)
 	suite.Equal("https://registry.example.com", pinged.URL)
 	suite.False(pinged.Insecure)
 	suite.Empty(pinged.CACertificate)

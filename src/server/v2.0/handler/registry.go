@@ -236,11 +236,11 @@ func (r *registryAPI) PingRegistry(ctx context.Context, params operation.PingReg
 				return r.SendError(ctx, err)
 			}
 		}
-		if params.Registry.Type != nil {
+		if params.Registry.Type != nil && params.Registry.ID == nil {
 			registry.Type = *params.Registry.Type
 		}
-		// for an existing registry (referenced by id) its saved connection settings are
-		// authoritative; ignore url/insecure/ca overrides so the ping (and the saved
+		// For an existing registry (referenced by id), saved connection settings are
+		// authoritative; ignore type/url/insecure/ca overrides so the ping (and the saved
 		// credentials it sends) can't be redirected to or MITM'd via an untrusted endpoint
 		if params.Registry.URL != nil && params.Registry.ID == nil {
 			url, err := lib.ValidateHTTPURL(*params.Registry.URL)

@@ -9051,7 +9051,8 @@ definitions:
     enum:
       - http
       - slack
-      - amqp
+- amqp
+      - discord
     example: 'http'
   PayloadFormatType:
     type: string

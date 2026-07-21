@@ -49,6 +49,8 @@ func (n *WebhookJob) ToSwagger() *models.WebhookJob {
 		notifyType = "discord"
 	} else if n.VendorType == job.EmailJobVendorType {
 		notifyType = "email"
+	} else if n.VendorType == job.TelegramJobVendorType {
+		notifyType = "telegram"
 	}
 	webhookJob.NotifyType = notifyType
 

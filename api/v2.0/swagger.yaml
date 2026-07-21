@@ -9054,6 +9054,7 @@ definitions:
 - amqp
       - discord
       - email
+      - telegram
     example: 'http'
   PayloadFormatType:
     type: string

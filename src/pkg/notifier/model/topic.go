@@ -24,6 +24,8 @@ const (
 	DiscordTopic = "discord"
 	// EmailTopic is topic for sending email payload
 	EmailTopic = "email"
-	// AMQPTopic is topic for sending amqp payload
+// AMQPTopic is topic for sending amqp payload
 	AMQPTopic = "amqp"
+	// TelegramTopic is topic for sending telegram payload
+	TelegramTopic = "telegram"
 )

@@ -109,7 +109,9 @@ func authDirector(d func(*http.Request)) func(*http.Request) {
 		case "token":
 			if tk := getRegistryToken(r); tk != "" {
 				r.Header.Set("Authorization", "Bearer "+tk)
+				return
 			}
+			fallthrough
 		default:
 			u, p := config.RegistryCredential()
 			r.SetBasicAuth(u, p)
@@ -220,14 +222,6 @@ func getRegistryToken(r *http.Request) string {
 	}
 	tokenCache.mu.RUnlock()
 
-	tokenCache.mu.Lock()
-	defer tokenCache.mu.Unlock()
-
-	// Double-check after acquiring write lock
-	if cached, ok := tokenCache.data[scope]; ok && cached.token != "" && time.Now().Before(cached.expires) {
-		return cached.token
-	}
-
 	tokenURL := fmt.Sprintf("%s?service=harbor-registry&scope=%s", getTokenServiceURL(), url.QueryEscape(scope))
 
 	req, err := http.NewRequest(http.MethodGet, tokenURL, nil)
@@ -241,8 +235,7 @@ func getRegistryToken(r *http.Request) string {
 		req.SetBasicAuth(username, password)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := exchangeHTTPClient.Do(req)
 	if err != nil {
 		log.Warningf("failed to get registry token: %v", err)
 		return ""
@@ -279,24 +272,28 @@ func getRegistryToken(r *http.Request) string {
 		ttl = time.Duration(expiresIn) * time.Second
 	}
 
+	tokenCache.mu.Lock()
 	tokenCache.data[scope] = &cachedToken{
 		token:   tokenResp.Token,
 		expires: time.Now().Add(ttl),
 	}
+	tokenCache.mu.Unlock()
 	return tokenResp.Token
 }
 
 // registryOperationSegments are the path segments that mark the end of the
 // repository name and the start of the registry operation, per the
-// distribution API spec (manifests, blobs, blobs/uploads, tags).
+// distribution/OCI API spec (manifests, blobs, blobs/uploads, tags,
+// referrers).
 var registryOperationSegments = map[string]bool{
 	"manifests": true,
 	"blobs":     true,
 	"tags":      true,
+	"referrers": true,
 }
 
 // scopeFromRequest extracts the Docker registry scope from the request path.
-// The repository name is everything between "/v2/" and the first operation
+// The repository name is everything between "/v2/" and the operation
 // segment, so nested repository names (e.g. project/app/subimage) are
 // preserved in full rather than truncated to two path components.
 // For a path like /v2/library/nginx/manifests/latest it returns
@@ -310,9 +307,16 @@ func scopeFromRequest(r *http.Request) string {
 		return "repository:*:pull,push"
 	}
 	segments := strings.Split(strings.TrimPrefix(path, "/v2/"), "/")
+	// Scan from the right for the operation segment, since a repository name
+	// component can itself legally be "manifests", "blobs", or "tags" (e.g.
+	// myorg/manifests/app); the actual operation is always the rightmost
+	// match, adjacent to the trailing reference/digest/uuid component.
 	opIndex := -1
-	for i, seg := range segments {
-		if registryOperationSegments[seg] {
+	for i := len(segments) - 1; i > 0; i-- {
+		// Every recognized operation is followed by a reference, digest, or
+		// upload UUID, so a match in the trailing segment is part of the
+		// repository name, not the operation itself.
+		if registryOperationSegments[segments[i]] && i < len(segments)-1 {
 			opIndex = i
 			break
 		}

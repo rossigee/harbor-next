@@ -16,13 +16,14 @@ package token //nolint:revive
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/base32"
+	"encoding/base64"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -162,53 +163,47 @@ func MakeToken(ctx context.Context, username, service string, access []*token.Re
 	}, nil
 }
 
-// generateKeyID derives a key ID from a crypto key, replicating libtrust's
-// fingerprint algorithm so tokens validate against an unmodified docker
-// distribution registry (which computes its trusted key IDs the same way
-// from rootcertbundle): SHA256 of the DER-encoded SubjectPublicKeyInfo,
-// truncated to 240 bits (30 bytes), base32-encoded and grouped into 4-char
-// blocks joined by colons -- e.g. "ABCD:EFGH:IJKL:...". This supports RSA,
-// ECDSA, and Ed25519 keys without depending on libtrust's own key types.
+// generateKeyID derives an RFC 7638 JSON Web Key (JWK) Thumbprint from a
+// crypto key, matching docker distribution's GetJWKThumbprint (see
+// registry/auth/token/util.go). This is what a distribution registry
+// actually uses (as of v3.1.1) to compute the trusted key IDs it loads from
+// rootcertbundle -- distribution moved off the older libtrust key-ID format
+// entirely, so replicating that legacy format (as an earlier version of
+// this function did) produces a well-formed but unrecognized key ID, and
+// every token is rejected as signed by an "untrusted key" even though the
+// underlying key material matches. Supports RSA, ECDSA, and Ed25519 keys.
 func generateKeyID(key any) (string, error) {
-	var pubBytes []byte
-	var err error
-
+	var pub crypto.PublicKey
 	switch k := key.(type) {
 	case *rsa.PrivateKey:
-		pubBytes, err = x509.MarshalPKIXPublicKey(&k.PublicKey)
+		pub = &k.PublicKey
 	case *ecdsa.PrivateKey:
-		pubBytes, err = x509.MarshalPKIXPublicKey(&k.PublicKey)
+		pub = &k.PublicKey
 	case ed25519.PrivateKey:
-		pubBytes, err = x509.MarshalPKIXPublicKey(k.Public())
-	case *rsa.PublicKey:
-		pubBytes, err = x509.MarshalPKIXPublicKey(k)
-	case *ecdsa.PublicKey:
-		pubBytes, err = x509.MarshalPKIXPublicKey(k)
-	case ed25519.PublicKey:
-		pubBytes, err = x509.MarshalPKIXPublicKey(k)
+		pub = k.Public()
+	case *rsa.PublicKey, *ecdsa.PublicKey, ed25519.PublicKey:
+		pub = k
 	default:
 		return "", fmt.Errorf("unsupported key type: %T", key)
 	}
 
-	if err != nil {
-		return "", err
+	var payload string
+	switch p := pub.(type) {
+	case *rsa.PublicKey:
+		e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
+		n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
+		payload = fmt.Sprintf(`{"e":"%s","kty":"RSA","n":"%s"}`, e, n)
+	case *ecdsa.PublicKey:
+		x := base64.RawURLEncoding.EncodeToString(p.X.Bytes())
+		y := base64.RawURLEncoding.EncodeToString(p.Y.Bytes())
+		payload = fmt.Sprintf(`{"crv":"%s","kty":"EC","x":"%s","y":"%s"}`, p.Params().Name, x, y)
+	case ed25519.PublicKey:
+		x := base64.RawURLEncoding.EncodeToString(p)
+		payload = fmt.Sprintf(`{"crv":"Ed25519","kty":"OKP","x":"%s"}`, x)
+	default:
+		return "", fmt.Errorf("unsupported public key type: %T", pub)
 	}
 
-	hash := sha256.Sum256(pubBytes)
-	return keyIDEncode(hash[:30]), nil
-}
-
-// keyIDEncode formats a truncated key hash into libtrust's colon-grouped
-// base32 key ID format.
-func keyIDEncode(b []byte) string {
-	s := strings.TrimRight(base32.StdEncoding.EncodeToString(b), "=")
-	var buf strings.Builder
-	var i int
-	for i = 0; i < len(s)/4-1; i++ {
-		start := i * 4
-		end := start + 4
-		buf.WriteString(s[start:end] + ":")
-	}
-	buf.WriteString(s[i*4:])
-	return buf.String()
+	hash := sha256.Sum256([]byte(payload))
+	return base64.RawURLEncoding.EncodeToString(hash[:]), nil
 }

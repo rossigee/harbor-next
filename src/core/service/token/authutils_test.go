@@ -17,23 +17,31 @@ package token
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
 
-	"github.com/docker/libtrust"
+	distributiontoken "github.com/distribution/distribution/v3/registry/auth/token"
 	"github.com/stretchr/testify/require"
 )
 
-// TestGenerateKeyIDMatchesLibtrust guards against a regression where
-// generateKeyID's output format diverged from libtrust's key ID algorithm.
-// docker distribution registries compute their trusted key IDs from
-// rootcertbundle using libtrust's algorithm; if generateKeyID doesn't
-// produce the exact same value for the exact same key, every token this
-// service issues is silently rejected by an unmodified registry with
+// TestGenerateKeyIDMatchesDistribution guards against a regression where
+// generateKeyID's output diverged from the key ID algorithm the actual
+// docker distribution registry image this project builds (see
+// DISTRIBUTION_VERSION in versions.env) uses to compute its trusted key IDs
+// from rootcertbundle. If the two don't match byte-for-byte, every token
+// this service issues is silently rejected by the registry with
 // "token signed by untrusted key", even though the underlying key material
-// matches.
-func TestGenerateKeyIDMatchesLibtrust(t *testing.T) {
+// is identical -- this exact regression shipped and went undetected because
+// the only existing tests (TestMakeToken, TestMakeTokenECDSA) verify a
+// token round-trips against its own public key, which can't catch a format
+// mismatch against the real registry.
+//
+// distribution v3.1.1 computes trusted key IDs via GetJWKThumbprint (RFC
+// 7638 JSON Web Key Thumbprint), having moved off the older libtrust
+// key-ID format entirely.
+func TestGenerateKeyIDMatchesDistribution(t *testing.T) {
 	t.Run("RSA", func(t *testing.T) {
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
 		require.NoError(t, err)
@@ -41,7 +49,8 @@ func TestGenerateKeyIDMatchesLibtrust(t *testing.T) {
 		got, err := generateKeyID(key)
 		require.NoError(t, err)
 
-		want := libtrustKeyID(t, &key.PublicKey)
+		want := distributiontoken.GetJWKThumbprint(&key.PublicKey)
+		require.NotEmpty(t, want)
 		require.Equal(t, want, got)
 	})
 
@@ -52,17 +61,20 @@ func TestGenerateKeyIDMatchesLibtrust(t *testing.T) {
 		got, err := generateKeyID(key)
 		require.NoError(t, err)
 
-		want := libtrustKeyID(t, &key.PublicKey)
+		want := distributiontoken.GetJWKThumbprint(&key.PublicKey)
+		require.NotEmpty(t, want)
 		require.Equal(t, want, got)
 	})
-}
 
-// libtrustKeyID computes the expected key ID for pubKey using the real
-// libtrust library, as ground truth for what a docker distribution registry
-// will compute from the corresponding certificate.
-func libtrustKeyID(t *testing.T, pubKey any) string {
-	t.Helper()
-	ltKey, err := libtrust.FromCryptoPublicKey(pubKey)
-	require.NoError(t, err)
-	return ltKey.KeyID()
+	t.Run("Ed25519", func(t *testing.T) {
+		pub, priv, err := ed25519.GenerateKey(rand.Reader)
+		require.NoError(t, err)
+
+		got, err := generateKeyID(priv)
+		require.NoError(t, err)
+
+		want := distributiontoken.GetJWKThumbprint(pub)
+		require.NotEmpty(t, want)
+		require.Equal(t, want, got)
+	})
 }

@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base32"
 	"fmt"
 	"strings"
 	"time"
@@ -161,8 +162,13 @@ func MakeToken(ctx context.Context, username, service string, access []*token.Re
 	}, nil
 }
 
-// generateKeyID derives a key ID from a crypto key.
-// This approach supports RSA, ECDSA, and Ed25519 keys without relying on libtrust.
+// generateKeyID derives a key ID from a crypto key, replicating libtrust's
+// fingerprint algorithm so tokens validate against an unmodified docker
+// distribution registry (which computes its trusted key IDs the same way
+// from rootcertbundle): SHA256 of the DER-encoded SubjectPublicKeyInfo,
+// truncated to 240 bits (30 bytes), base32-encoded and grouped into 4-char
+// blocks joined by colons -- e.g. "ABCD:EFGH:IJKL:...". This supports RSA,
+// ECDSA, and Ed25519 keys without depending on libtrust's own key types.
 func generateKeyID(key any) (string, error) {
 	var pubBytes []byte
 	var err error
@@ -173,13 +179,13 @@ func generateKeyID(key any) (string, error) {
 	case *ecdsa.PrivateKey:
 		pubBytes, err = x509.MarshalPKIXPublicKey(&k.PublicKey)
 	case ed25519.PrivateKey:
-		pubBytes = []byte(k)
+		pubBytes, err = x509.MarshalPKIXPublicKey(k.Public())
 	case *rsa.PublicKey:
 		pubBytes, err = x509.MarshalPKIXPublicKey(k)
 	case *ecdsa.PublicKey:
 		pubBytes, err = x509.MarshalPKIXPublicKey(k)
 	case ed25519.PublicKey:
-		pubBytes = []byte(k)
+		pubBytes, err = x509.MarshalPKIXPublicKey(k)
 	default:
 		return "", fmt.Errorf("unsupported key type: %T", key)
 	}
@@ -188,7 +194,21 @@ func generateKeyID(key any) (string, error) {
 		return "", err
 	}
 
-	// Use SHA256 hash of the key bytes as the key ID (first 8 hex chars)
 	hash := sha256.Sum256(pubBytes)
-	return fmt.Sprintf("%x", hash[:8]), nil
+	return keyIDEncode(hash[:30]), nil
+}
+
+// keyIDEncode formats a truncated key hash into libtrust's colon-grouped
+// base32 key ID format.
+func keyIDEncode(b []byte) string {
+	s := strings.TrimRight(base32.StdEncoding.EncodeToString(b), "=")
+	var buf strings.Builder
+	var i int
+	for i = 0; i < len(s)/4-1; i++ {
+		start := i * 4
+		end := start + 4
+		buf.WriteString(s[start:end] + ":")
+	}
+	buf.WriteString(s[i*4:])
+	return buf.String()
 }

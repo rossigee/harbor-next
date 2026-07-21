@@ -60,6 +60,8 @@ case model.NotifyTypeAMQP:
 		vendorType = job.EmailJobVendorType
 	case model.NotifyTypeTelegram:
 		vendorType = job.TelegramJobVendorType
+	case model.NotifyTypeMatrix:
+		vendorType = job.MatrixJobVendorType
 	}
 
 	if len(vendorType) == 0 {

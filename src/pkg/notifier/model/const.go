@@ -22,4 +22,5 @@ NotifyTypeHTTP     = "http"
 	NotifyTypeDiscord  = "discord"
 	NotifyTypeEmail    = "email"
 	NotifyTypeTelegram = "telegram"
+	NotifyTypeMatrix   = "matrix"
 )

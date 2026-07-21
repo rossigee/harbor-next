@@ -29,7 +29,8 @@ model.WebhookTopic:  {&notification.HTTPHandler{}},
 		model.AMQPTopic:     {&notification.AMQPHandler{}},
 		model.DiscordTopic:  {&notification.DiscordHandler{}},
 		model.EmailTopic:    {&notification.EmailHandler{}},
-		model.TelegramTopic: {&notification.TelegramHandler{}}
+		model.TelegramTopic: {&notification.TelegramHandler{}},
+		model.MatrixTopic:   {&notification.MatrixHandler{}}
 	}
 
 	for t, handlers := range handlersMap {

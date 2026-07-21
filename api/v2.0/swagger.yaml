@@ -9055,6 +9055,7 @@ definitions:
       - discord
       - email
       - telegram
+      - matrix
     example: 'http'
   PayloadFormatType:
     type: string

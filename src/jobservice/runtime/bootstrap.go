@@ -331,7 +331,8 @@ func (bs *Bootstrap) loadAndRunRedisWorkerPool(
 job.AMQPJobVendorType:           (*notification.AMQPJob)(nil),
 			job.DiscordJobVendorType:        (*notification.DiscordJob)(nil),
 			job.EmailJobVendorType:          (*notification.EmailJob)(nil),
-			job.TelegramJobVendorType:       (*notification.TelegramJob)(nil)
+			job.TelegramJobVendorType:       (*notification.TelegramJob)(nil),
+			job.MatrixJobVendorType:         (*notification.MatrixJob)(nil)
 			job.P2PPreheatVendorType:        (*preheat.Job)(nil),
 			job.ScanDataExportVendorType:    (*scandataexport.ScanDataExport)(nil),
 			// In v2.2 we migrate the scheduled replication, garbage collection and scan all to

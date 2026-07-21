@@ -134,6 +134,48 @@ func TestLoadCustomCACertificatesMissingSystemBundle(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "combined bundle should not be written when the system bundle can't be read")
 }
 
+func TestLoadCustomCACertificatesSkipsUnreadableFile(t *testing.T) {
+	withCleanSSLCertFileEnv(t)
+
+	customCert := generateSelfSignedCert(t)
+	certDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(certDir, "internal-ca.crt"), []byte(customCert), 0o644))
+
+	unreadable := filepath.Join(certDir, "unreadable.crt")
+	require.NoError(t, os.WriteFile(unreadable, []byte(customCert), 0o644))
+	require.NoError(t, os.Chmod(unreadable, 0o000))
+
+	systemBundle := filepath.Join(t.TempDir(), "ca-certificates.crt")
+	require.NoError(t, os.WriteFile(systemBundle, []byte("-----BEGIN SYSTEM BUNDLE-----\n"), 0o644))
+
+	combined := filepath.Join(t.TempDir(), "combined.crt")
+	loadCustomCACertificates(certDir, systemBundle, combined)
+
+	assert.Equal(t, combined, os.Getenv("SSL_CERT_FILE"), "the readable cert should still be loaded")
+	got, err := os.ReadFile(combined)
+	require.NoError(t, err)
+	assert.Contains(t, string(got), customCert)
+}
+
+func TestLoadCustomCACertificatesWriteFailure(t *testing.T) {
+	withCleanSSLCertFileEnv(t)
+
+	customCert := generateSelfSignedCert(t)
+	certDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(certDir, "internal-ca.crt"), []byte(customCert), 0o644))
+
+	systemBundle := filepath.Join(t.TempDir(), "ca-certificates.crt")
+	require.NoError(t, os.WriteFile(systemBundle, []byte("-----BEGIN SYSTEM BUNDLE-----\n"), 0o644))
+
+	// Parent directory doesn't exist, so the write fails regardless of
+	// permissions or whether the test runs as root.
+	combined := filepath.Join(t.TempDir(), "does-not-exist", "combined.crt")
+	loadCustomCACertificates(certDir, systemBundle, combined)
+
+	_, ok := os.LookupEnv("SSL_CERT_FILE")
+	assert.False(t, ok, "SSL_CERT_FILE should be untouched when the combined bundle can't be written")
+}
+
 func TestLoadCustomCACertificatesPublicEntrypointIsNoOpByDefault(t *testing.T) {
 	withCleanSSLCertFileEnv(t)
 

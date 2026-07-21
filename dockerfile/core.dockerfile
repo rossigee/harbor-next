@@ -4,7 +4,7 @@ FROM alpine:${ALPINE_VERSION} AS certs
 RUN addgroup -S -g 10000 harbor && adduser -S -G harbor -u 10000 harbor
 
 FROM scratch
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --chown=10000:10000 --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=certs /etc/passwd /etc/group /etc/
 ARG TARGETARCH
 COPY bin/linux-${TARGETARCH}/lprobe /lprobe

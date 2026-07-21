@@ -38,6 +38,8 @@ const (
 	AMQPJobVendorType = "AMQP"
 	// DiscordJobVendorType : the name of the discord job in job service
 	DiscordJobVendorType = "DISCORD"
+	// EmailJobVendorType : the name of the email job in job service
+	EmailJobVendorType = "EMAIL"
 	// RetentionVendorType : the name of the retention job
 	RetentionVendorType = "RETENTION"
 	// P2PPreheatVendorType : the name of the P2P preheat job
@@ -67,7 +69,8 @@ var (
 		GarbageCollectionVendorType:     lib.GetEnvInt64("GARBAGE_COLLECTION_EXECUTION_RETENTION_COUNT", 50),
 		SlackJobVendorType:              lib.GetEnvInt64("SLACK_EXECUTION_RETENTION_COUNT", 50),
 AMQPJobVendorType:               lib.GetEnvInt64("AMQP_EXECUTION_RETENTION_COUNT", 50),
-		DiscordJobVendorType:            lib.GetEnvInt64("DISCORD_EXECUTION_RETENTION_COUNT", 50)
+		DiscordJobVendorType:            lib.GetEnvInt64("DISCORD_EXECUTION_RETENTION_COUNT", 50),
+		EmailJobVendorType:              lib.GetEnvInt64("EMAIL_EXECUTION_RETENTION_COUNT", 50),
 		WebhookJobVendorType:            lib.GetEnvInt64("WEBHOOK_EXECUTION_RETENTION_COUNT", 50),
 		ReplicationVendorType:           lib.GetEnvInt64("REPLICATION_EXECUTION_RETENTION_COUNT", 50),
 		ScanDataExportVendorType:        lib.GetEnvInt64("SCAN_DATA_EXPORT_EXECUTION_RETENTION_COUNT", 50),

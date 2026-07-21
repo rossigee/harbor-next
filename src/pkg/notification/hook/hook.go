@@ -56,6 +56,8 @@ case model.NotifyTypeAMQP:
 		vendorType = job.AMQPJobVendorType
 	case model.NotifyTypeDiscord:
 		vendorType = job.DiscordJobVendorType
+	case model.NotifyTypeEmail:
+		vendorType = job.EmailJobVendorType
 	}
 
 	if len(vendorType) == 0 {

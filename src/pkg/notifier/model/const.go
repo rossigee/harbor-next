@@ -20,4 +20,5 @@ NotifyTypeHTTP    = "http"
 	NotifyTypeSlack   = "slack"
 	NotifyTypeAMQP    = "amqp"
 	NotifyTypeDiscord = "discord"
+	NotifyTypeEmail   = "email"
 )

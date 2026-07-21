@@ -27,7 +27,8 @@ func init() {
 		model.WebhookTopic: {&notification.HTTPHandler{}},
 		model.SlackTopic:   {&notification.SlackHandler{}},
 model.AMQPTopic:     {&notification.AMQPHandler{}},
-		model.DiscordTopic: {&notification.DiscordHandler{}}
+		model.DiscordTopic: {&notification.DiscordHandler{}},
+		model.EmailTopic:   {&notification.EmailHandler{}}
 	}
 
 	for t, handlers := range handlersMap {

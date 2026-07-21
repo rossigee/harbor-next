@@ -9053,6 +9053,7 @@ definitions:
       - slack
 - amqp
       - discord
+      - email
     example: 'http'
   PayloadFormatType:
     type: string

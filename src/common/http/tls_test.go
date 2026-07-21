@@ -144,3 +144,27 @@ func TestLoadCustomCACertificatesPublicEntrypointIsNoOpByDefault(t *testing.T) {
 	_, ok := os.LookupEnv("SSL_CERT_FILE")
 	assert.False(t, ok)
 }
+
+func withCleanCustomCACertDirEnv(t *testing.T) {
+	t.Helper()
+	original, had := os.LookupEnv(customCACertDirEnv)
+	t.Cleanup(func() {
+		if had {
+			os.Setenv(customCACertDirEnv, original)
+		} else {
+			os.Unsetenv(customCACertDirEnv)
+		}
+	})
+	os.Unsetenv(customCACertDirEnv)
+}
+
+func TestResolveCustomCACertDirDefault(t *testing.T) {
+	withCleanCustomCACertDirEnv(t)
+	assert.Equal(t, defaultCustomCACertDir, resolveCustomCACertDir())
+}
+
+func TestResolveCustomCACertDirOverride(t *testing.T) {
+	withCleanCustomCACertDirEnv(t)
+	os.Setenv(customCACertDirEnv, "/tls")
+	assert.Equal(t, "/tls", resolveCustomCACertDir())
+}

@@ -31,10 +31,11 @@ const (
 	internalTLSKeyPath       = "INTERNAL_TLS_KEY_PATH"
 	internalTLSCertPath      = "INTERNAL_TLS_CERT_PATH"
 
-	// customCACertDir is the conventional mount point for operator-supplied
-	// custom CA certificates, matching Harbor's long-standing "harbor_cust_cert"
-	// convention.
-	customCACertDir = "/harbor_cust_cert"
+	// customCACertDirEnv optionally overrides where operator-supplied custom
+	// CA certificates are mounted. Defaults to "/harbor_cust_cert", Harbor's
+	// long-standing convention, if unset.
+	customCACertDirEnv     = "HARBOR_CUST_CERT_DIR"
+	defaultCustomCACertDir = "/harbor_cust_cert"
 	// defaultSystemCABundle is the CA bundle baked into Harbor's scratch-based
 	// service images at build time.
 	defaultSystemCABundle = "/etc/ssl/certs/ca-certificates.crt"
@@ -95,9 +96,10 @@ func NewServerTLSConfig() *tls.Config {
 }
 
 // LoadCustomCACertificates merges any operator-supplied CA certificates
-// mounted at /harbor_cust_cert into the CA bundle baked into this image at
-// build time, and points Go's TLS stack at the merged bundle via
-// SSL_CERT_FILE.
+// mounted at the directory named by HARBOR_CUST_CERT_DIR (default
+// /harbor_cust_cert, Harbor's long-standing convention) into the CA bundle
+// baked into this image at build time, and points Go's TLS stack at the
+// merged bundle via SSL_CERT_FILE.
 //
 // Harbor's scratch-based service images (core, jobservice, registryctl,
 // exporter) have no shell or update-ca-certificates, so without this a
@@ -108,10 +110,20 @@ func NewServerTLSConfig() *tls.Config {
 // before any TLS connection is attempted, ideally as the first thing in
 // main().
 //
-// It is a deliberate no-op when customCACertDir doesn't exist or is empty,
-// which is the common case for deployments that don't use a private CA.
+// It is a deliberate no-op when the custom cert directory doesn't exist or
+// is empty, which is the common case for deployments that don't use a
+// private CA.
 func LoadCustomCACertificates() {
-	loadCustomCACertificates(customCACertDir, defaultSystemCABundle, combinedCABundlePath)
+	loadCustomCACertificates(resolveCustomCACertDir(), defaultSystemCABundle, combinedCABundlePath)
+}
+
+// resolveCustomCACertDir returns the HARBOR_CUST_CERT_DIR override if set,
+// otherwise the default custom CA cert directory.
+func resolveCustomCACertDir() string {
+	if dir := os.Getenv(customCACertDirEnv); dir != "" {
+		return dir
+	}
+	return defaultCustomCACertDir
 }
 
 // loadCustomCACertificates does the work for LoadCustomCACertificates, with

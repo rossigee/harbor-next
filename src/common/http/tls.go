@@ -18,7 +18,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/goharbor/harbor/src/lib/log"
 )
 
 const (
@@ -27,6 +30,17 @@ const (
 	internalVerifyClientCert = "INTERNAL_VERIFY_CLIENT_CERT"
 	internalTLSKeyPath       = "INTERNAL_TLS_KEY_PATH"
 	internalTLSCertPath      = "INTERNAL_TLS_CERT_PATH"
+
+	// customCACertDir is the conventional mount point for operator-supplied
+	// custom CA certificates, matching Harbor's long-standing "harbor_cust_cert"
+	// convention.
+	customCACertDir = "/harbor_cust_cert"
+	// defaultSystemCABundle is the CA bundle baked into Harbor's scratch-based
+	// service images at build time.
+	defaultSystemCABundle = "/etc/ssl/certs/ca-certificates.crt"
+	// combinedCABundlePath is where the merged (system + custom) bundle is
+	// written at startup, and what SSL_CERT_FILE is pointed at afterward.
+	combinedCABundlePath = "/etc/ssl/certs/harbor-custom-ca-certificates.crt"
 )
 
 // InternalTLSEnabled returns true if internal TLS enabled
@@ -78,4 +92,87 @@ func NewServerTLSConfig() *tls.Config {
 			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 		},
 	}
+}
+
+// LoadCustomCACertificates merges any operator-supplied CA certificates
+// mounted at /harbor_cust_cert into the CA bundle baked into this image at
+// build time, and points Go's TLS stack at the merged bundle via
+// SSL_CERT_FILE.
+//
+// Harbor's scratch-based service images (core, jobservice, registryctl,
+// exporter) have no shell or update-ca-certificates, so without this a
+// mounted custom CA directory is inert: outbound TLS connections these
+// services make back to Harbor's own externally-signed endpoints (e.g. the
+// registry's token realm) fail with "certificate signed by unknown
+// authority" even though the operator supplied the CA. This must be called
+// before any TLS connection is attempted, ideally as the first thing in
+// main().
+//
+// It is a deliberate no-op when customCACertDir doesn't exist or is empty,
+// which is the common case for deployments that don't use a private CA.
+func LoadCustomCACertificates() {
+	loadCustomCACertificates(customCACertDir, defaultSystemCABundle, combinedCABundlePath)
+}
+
+// loadCustomCACertificates does the work for LoadCustomCACertificates, with
+// paths as parameters so it can be exercised in tests without touching real
+// filesystem locations.
+func loadCustomCACertificates(certDir, defaultSystemBundlePath, combinedBundlePath string) {
+	entries, err := os.ReadDir(certDir)
+	if err != nil {
+		return
+	}
+
+	var certFiles []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		switch strings.ToLower(filepath.Ext(e.Name())) {
+		case ".crt", ".pem":
+			certFiles = append(certFiles, filepath.Join(certDir, e.Name()))
+		}
+	}
+	if len(certFiles) == 0 {
+		return
+	}
+
+	systemBundlePath := os.Getenv("SSL_CERT_FILE")
+	if systemBundlePath == "" {
+		systemBundlePath = defaultSystemBundlePath
+	}
+	systemBundlePath = filepath.Clean(systemBundlePath)
+	combined, err := os.ReadFile(systemBundlePath)
+	if err != nil {
+		log.Errorf("custom CA certs found in %s but failed to read system CA bundle %s: %v", certDir, systemBundlePath, err)
+		return
+	}
+
+	loaded := 0
+	for _, f := range certFiles {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			log.Errorf("failed to read custom CA certificate %s: %v", f, err)
+			continue
+		}
+		combined = append(combined, '\n')
+		combined = append(combined, data...)
+		loaded++
+	}
+	if loaded == 0 {
+		return
+	}
+
+	combinedBundlePath = filepath.Clean(combinedBundlePath)
+	if !filepath.IsAbs(combinedBundlePath) || strings.Contains(combinedBundlePath, "..") {
+		log.Errorf("refusing to write combined CA bundle to suspicious path %s", combinedBundlePath)
+		return
+	}
+	if err := os.WriteFile(combinedBundlePath, combined, 0o644); err != nil { //nolint:gosec // G703: path is validated absolute/non-traversal above; only ever a hardcoded constant in production, varied only in tests
+		log.Errorf("failed to write combined CA bundle %s: %v", combinedBundlePath, err)
+		return
+	}
+
+	os.Setenv("SSL_CERT_FILE", combinedBundlePath)
+	log.Infof("loaded %d custom CA certificate(s) from %s into %s", loaded, certDir, combinedBundlePath)
 }

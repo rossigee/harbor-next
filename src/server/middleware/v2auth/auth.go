@@ -92,19 +92,17 @@ func (rc *reqChecker) projectID(ctx context.Context, name string) (int64, error)
 func getChallenge(req *http.Request, accessList []access) string {
 	logger := log.G(req.Context())
 	auth := req.Header.Get(authHeader)
-
-	// For catalog requests, always return Basic challenge regardless of auth header
-	if lib.V2CatalogURLRe.MatchString(req.URL.Path) {
-		return `Basic realm="harbor"`
-	}
-
 	// A request that already carries Basic credentials isn't following the
 	// OCI/Docker Bearer token flow, so challenge it with Basic too instead of
-	// pointing it at the token service. Scheme is case-insensitive per HTTP spec.
-	if len(auth) >= 6 && strings.EqualFold(auth[:6], "basic ") {
+	// pointing it at the token service. '/v2/_catalog' always gets a Basic
+	// challenge regardless of any auth header present. Scheme is
+	// case-insensitive per HTTP spec.
+	if (len(auth) >= 6 && strings.EqualFold(auth[:6], "basic ")) || lib.V2CatalogURLRe.MatchString(req.URL.Path) {
 		return `Basic realm="harbor"`
 	}
 
+	// No auth header, or a Bearer header needing refresh: treat it as an
+	// OCI/CLI client and redirect to token service.
 	// Build scope string (shared by all Bearer challenges)
 	scope := ""
 	for _, a := range accessList {

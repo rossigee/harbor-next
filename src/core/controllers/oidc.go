@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/goharbor/harbor/src/common"
 	"github.com/goharbor/harbor/src/common/models"
 	"github.com/goharbor/harbor/src/common/utils"
 	"github.com/goharbor/harbor/src/controller/event/metadata/commonevent"
@@ -53,8 +52,9 @@ type OIDCController struct {
 
 // Prepare include public code path for call request handler of OIDCController
 func (oc *OIDCController) Prepare() {
-	if mode, _ := config.AuthMode(oc.Context()); mode != common.OIDCAuth {
-		oc.SendPreconditionFailedError(fmt.Errorf("auth mode: %s is not OIDC based", mode))
+	setting, err := config.OIDCSetting(oc.Context())
+	if err != nil || setting.Endpoint == "" {
+		oc.SendPreconditionFailedError(fmt.Errorf("OIDC auth is not configured"))
 		return
 	}
 }

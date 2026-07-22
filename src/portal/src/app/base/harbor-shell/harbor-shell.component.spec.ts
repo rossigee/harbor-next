@@ -95,9 +95,6 @@ const fakedUserService = {
     setCliSecret() {
         return of(null);
     },
-    ListPersonalAccessTokens(_options: any) {
-        return of([]);
-    },
 };
 
 describe('HarborShellComponent', () => {

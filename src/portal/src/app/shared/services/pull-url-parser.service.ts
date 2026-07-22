@@ -26,7 +26,6 @@ const EXCLUDED_PATH_PREFIXES = [
     '/v2',
     '/api',
     '/c',
-    '/oidc-onboard',
     '/license',
     '/devcenter-api-2.0',
 ];

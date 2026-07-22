@@ -19,8 +19,6 @@ import {
     Routes,
 } from '@angular/router';
 import { AuthCheckGuard } from './shared/router-guard/auth-user-activate.service';
-import { SignInGuard } from './shared/router-guard/sign-in-guard-activate.service';
-import { OidcGuard } from './shared/router-guard/oidc-guard-active.service';
 import { HarborRouteReuseStrategy } from './route-reuse-strategy/harbor-route-reuse-strategy';
 
 const harborRoutes: Routes = [
@@ -29,14 +27,6 @@ const harborRoutes: Routes = [
         path: 'account',
         loadChildren: () =>
             import('./account/account.module').then(m => m.AccountModule),
-    },
-    {
-        path: 'oidc-onboard',
-        canActivate: [OidcGuard, SignInGuard],
-        loadChildren: () =>
-            import('./oidc-onboard/oidc-onboard.module').then(
-                m => m.OidcOnboardModule
-            ),
     },
     {
         path: 'license',

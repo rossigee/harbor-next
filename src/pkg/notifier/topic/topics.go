@@ -24,13 +24,13 @@ import (
 // Subscribe topics
 func init() {
 	handlersMap := map[string][]notifier.NotificationHandler{
-model.WebhookTopic:  {&notification.HTTPHandler{}},
+		model.WebhookTopic:  {&notification.HTTPHandler{}},
 		model.SlackTopic:    {&notification.SlackHandler{}},
 		model.AMQPTopic:     {&notification.AMQPHandler{}},
 		model.DiscordTopic:  {&notification.DiscordHandler{}},
 		model.EmailTopic:    {&notification.EmailHandler{}},
 		model.TelegramTopic: {&notification.TelegramHandler{}},
-		model.MatrixTopic:   {&notification.MatrixHandler{}}
+		model.MatrixTopic:   {&notification.MatrixHandler{}},
 	}
 
 	for t, handlers := range handlersMap {

@@ -125,7 +125,6 @@ if err := c.execMgr.DeleteByVendor(ctx, job.AMQPJobVendorType, policyID); err !=
 	if err := c.execMgr.DeleteByVendor(ctx, job.MatrixJobVendorType, policyID); err != nil {
 		return errors.Wrapf(err, "failed to delete executions for matrix of policy %d", policyID)
 	}
-	}
 
 	return c.policyMgr.Delete(ctx, policyID)
 }

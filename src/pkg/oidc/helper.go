@@ -361,10 +361,12 @@ func userInfoFromRemote(ctx context.Context, token *Token, setting cfgModels.OID
 	return userInfoFromClaims(u, setting)
 }
 
+var errNoIDToken = errors.New("no ID token provided")
+
 // UserInfoFromIDToken extract user info from ID token
 func UserInfoFromIDToken(ctx context.Context, token *Token, setting cfgModels.OIDCSetting) (*UserInfo, error) {
 	if token.RawIDToken == "" {
-		return nil, nil
+		return nil, errNoIDToken
 	}
 	idt, err := parseIDToken(ctx, token.RawIDToken)
 	if err != nil {

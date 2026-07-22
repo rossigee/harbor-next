@@ -101,11 +101,13 @@ func (e endpointParser) parse(s string) (*image, error) {
 	return parseImg(repo[1])
 }
 
+var errWildcardScope = errors.New("wildcard scope")
+
 // build Image accepts a string like library/ubuntu:14.04 and build a image struct
 func parseImg(s string) (*image, error) {
 	// Handle wildcard scope - return nil and let repositoryFilter handle it
 	if s == "*" {
-		return nil, nil
+		return nil, errWildcardScope
 	}
 	repo := strings.SplitN(s, "/", 2)
 	if len(repo) < 2 {
@@ -155,12 +157,11 @@ func (rep repositoryFilter) filter(ctx context.Context, ctl project.Controller,
 	// clear action list to assign to new access element after perm check.
 	img, err := rep.parser.parse(a.Name)
 	if err != nil {
+		if errors.Is(err, errWildcardScope) {
+			a.Actions = []string{"pull", "push"}
+			return nil
+		}
 		return err
-	}
-	// Wildcard scope - grant all actions the user has permission for
-	if img == nil {
-		a.Actions = []string{"pull", "push"}
-		return nil
 	}
 	projectName := img.namespace
 

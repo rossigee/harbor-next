@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 )
 
 // This is for testing only
@@ -42,15 +41,4 @@ func (fv *fakeVerifier) VerifySecret(_ context.Context, name string, secret stri
 // Be reminded this is for testing only.
 func SetHardcodeVerifierForTest(s string) {
 	m = &fakeVerifier{s}
-}
-func mockPopulateGroups(groupNames []string) ([]int, error) {
-	res := make([]int, 0)
-	for _, g := range groupNames {
-		id, err := strconv.Atoi(g)
-		if err != nil {
-			return res, err
-		}
-		res = append(res, id)
-	}
-	return res, nil
 }

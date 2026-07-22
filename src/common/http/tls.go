@@ -177,7 +177,7 @@ func loadCustomCACertificates(certDir, defaultSystemBundlePath, combinedBundlePa
 		return
 	}
 
-combinedBundlePath = filepath.Clean(combinedBundlePath)
+	combinedBundlePath = filepath.Clean(combinedBundlePath)
 	if !filepath.IsAbs(combinedBundlePath) || strings.Contains(combinedBundlePath, "..") {
 		log.Errorf("refusing to write combined CA bundle to suspicious path %s", combinedBundlePath)
 		return

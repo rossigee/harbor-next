@@ -16,7 +16,7 @@ package model
 
 // const definitions
 const (
-NotifyTypeHTTP     = "http"
+	NotifyTypeHTTP     = "http"
 	NotifyTypeSlack    = "slack"
 	NotifyTypeAMQP     = "amqp"
 	NotifyTypeDiscord  = "discord"

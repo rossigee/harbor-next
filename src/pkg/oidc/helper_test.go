@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -547,7 +548,7 @@ func TestInjectGroupsToUser(t *testing.T) {
 	}
 	for _, c := range cases {
 		u := c.old
-		InjectGroupsToUser(c.userInfo, u, mockPopulateGroups)
+		InjectGroupsToUser(c.userInfo, u, mockPopulateGroupsTestHelper)
 		assert.Equal(t, *c.new, *u)
 	}
 }
@@ -572,4 +573,16 @@ func Test_filterGroup(t *testing.T) {
 			assert.Equalf(t, tt.want, filterGroup(tt.args.groupNames, tt.args.filter), "filterGroup(%v, %v)", tt.args.groupNames, tt.args.filter)
 		})
 	}
+}
+
+func mockPopulateGroupsTestHelper(groupNames []string) ([]int, error) {
+	res := make([]int, 0)
+	for _, g := range groupNames {
+		id, err := strconv.Atoi(g)
+		if err != nil {
+			return res, err
+		}
+		res = append(res, id)
+	}
+	return res, nil
 }

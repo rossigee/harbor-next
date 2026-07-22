@@ -41,7 +41,6 @@ import (
 const tokenKey = "oidc_token"
 const stateKey = "oidc_state"
 const pkceCodeKey = "oidc_pkce_code"
-const userInfoKey = "oidc_user_info"
 const redirectURLKey = "oidc_redirect_url"
 const oidcUserComment = "Onboarded via OIDC provider"
 
@@ -288,37 +287,6 @@ func (oc *OIDCController) RedirectLogout() {
 	)
 	log.Infof("Redirect user to logout page of OIDC provider: %s", logoutURL)
 	oc.Controller.Redirect(logoutURL, http.StatusFound)
-}
-
-func userOnboard(ctx context.Context, oc *OIDCController, info *oidc.UserInfo, username string, tokenBytes []byte) (*models.User, bool) {
-	s, t, err := secretAndToken(tokenBytes)
-	if err != nil {
-		oc.SendInternalServerError(err)
-		return nil, false
-	}
-	oidcUser := models.OIDCUser{
-		SubIss: info.Subject + info.Issuer,
-		Secret: s,
-		Token:  t,
-	}
-
-	user := &models.User{
-		Username:     username,
-		Realname:     username,
-		Email:        info.Email,
-		OIDCUserMeta: &oidcUser,
-		Comment:      oidcUserComment,
-	}
-	oidc.InjectGroupsToUser(info, user)
-
-	log.Infof("User created: %v\n", user.Username)
-
-	err = ctluser.Ctl.OnboardOIDCUser(ctx, user)
-	if err != nil {
-		oc.SendError(err)
-		return nil, false
-	}
-	return user, true
 }
 
 // resolveOIDCUser determines which Harbor user should be used for the given OIDC identity.

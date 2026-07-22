@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	htesting "github.com/goharbor/harbor/src/testing"
 
@@ -49,8 +48,8 @@ func (suite *DAOTestSuite) TestCreate() {
 	}
 
 	id, err := suite.dao.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
-	require.True(suite.T(), id > 0)
+	suite.NoError(err)
+	suite.True(id > 0)
 }
 
 func (suite *DAOTestSuite) TestCreateDuplicate() {
@@ -70,13 +69,13 @@ func (suite *DAOTestSuite) TestCreateDuplicate() {
 
 	// First create should succeed
 	id, err := suite.dao.Create(suite.Context(), pat1)
-	require.NoError(suite.T(), err)
-	require.True(suite.T(), id > 0)
+	suite.NoError(err)
+	suite.True(id > 0)
 
 	// Second create with same user_id and name should fail
 	_, err = suite.dao.Create(suite.Context(), pat2)
-	require.Error(suite.T(), err)
-	require.True(suite.T(), errors.IsConflictErr(err))
+	suite.Error(err)
+	suite.True(errors.IsConflictErr(err))
 }
 
 func (suite *DAOTestSuite) TestGet() {
@@ -90,19 +89,19 @@ func (suite *DAOTestSuite) TestGet() {
 
 	// Create first
 	_, err := suite.dao.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Get
 	retrieved, err := suite.dao.Get(suite.Context(), pat.ID)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), pat.UserID, retrieved.UserID)
-	require.Equal(suite.T(), pat.Name, retrieved.Name)
+	suite.NoError(err)
+	suite.Equal(pat.UserID, retrieved.UserID)
+	suite.Equal(pat.Name, retrieved.Name)
 }
 
 func (suite *DAOTestSuite) TestGetNotFound() {
 	_, err := suite.dao.Get(suite.Context(), 99999)
-	require.Error(suite.T(), err)
-	require.True(suite.T(), errors.IsNotFoundErr(err))
+	suite.Error(err)
+	suite.True(errors.IsNotFoundErr(err))
 }
 
 func (suite *DAOTestSuite) TestUpdate() {
@@ -117,7 +116,7 @@ func (suite *DAOTestSuite) TestUpdate() {
 
 	// Create
 	id, err := suite.dao.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Update
 	pat.ID = id
@@ -125,13 +124,13 @@ func (suite *DAOTestSuite) TestUpdate() {
 	pat.Disabled = true
 
 	err = suite.dao.Update(suite.Context(), pat, "description", "disabled")
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Verify
 	updated, err := suite.dao.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), "Updated", updated.Description)
-	require.True(suite.T(), updated.Disabled)
+	suite.NoError(err)
+	suite.Equal("Updated", updated.Description)
+	suite.True(updated.Disabled)
 }
 
 func (suite *DAOTestSuite) TestDelete() {
@@ -144,16 +143,16 @@ func (suite *DAOTestSuite) TestDelete() {
 
 	// Create
 	id, err := suite.dao.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Delete
 	err = suite.dao.Delete(suite.Context(), id)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Verify it's gone
 	_, err = suite.dao.Get(suite.Context(), id)
-	require.Error(suite.T(), err)
-	require.True(suite.T(), errors.IsNotFoundErr(err))
+	suite.Error(err)
+	suite.True(errors.IsNotFoundErr(err))
 }
 
 func (suite *DAOTestSuite) TestList() {
@@ -166,14 +165,14 @@ func (suite *DAOTestSuite) TestList() {
 			Salt:   "salt",
 		}
 		_, err := suite.dao.Create(suite.Context(), pat)
-		require.NoError(suite.T(), err)
+		suite.NoError(err)
 	}
 
 	// List all for user
 	query := q.New(q.KeyWords{"user_id": userID})
 	pats, err := suite.dao.List(suite.Context(), query)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), 3, len(pats))
+	suite.NoError(err)
+	suite.Equal(3, len(pats))
 }
 
 func (suite *DAOTestSuite) TestCount() {
@@ -186,14 +185,14 @@ func (suite *DAOTestSuite) TestCount() {
 			Salt:   "salt",
 		}
 		_, err := suite.dao.Create(suite.Context(), pat)
-		require.NoError(suite.T(), err)
+		suite.NoError(err)
 	}
 
 	// Count
 	query := q.New(q.KeyWords{"user_id": userID})
 	count, err := suite.dao.Count(suite.Context(), query)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), int64(2), count)
+	suite.NoError(err)
+	suite.Equal(int64(2), count)
 }
 
 func TestDAOTestSuite(t *testing.T) {

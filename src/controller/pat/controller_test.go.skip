@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	htesting "github.com/goharbor/harbor/src/testing"
 
@@ -42,8 +41,7 @@ func (suite *ControllerTestSuite) SetupSuite() {
 	for userID := 1; userID <= 12; userID++ {
 		username := fmt.Sprintf("testuser%d", userID)
 		email := fmt.Sprintf("user%d@example.com", userID)
-		realname := fmt.Sprintf("Test User %d", userID)
-		suite.ExecSQL("INSERT INTO harbor_user (user_id, username, email, password, realname) VALUES (?, ?, ?, ?, ?)", userID, username, email, "Harbor12345", realname)
+		suite.ExecSQL("INSERT INTO harbor_user (user_id, username, email, password) VALUES (?, ?, ?, ?)", userID, username, email, "Harbor12345")
 	}
 }
 
@@ -56,12 +54,12 @@ func (suite *ControllerTestSuite) TestCreateGeneratesSecretWithPrefix() {
 	}
 
 	id, plaintext, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
-	require.True(suite.T(), id > 0)
+	suite.NoError(err)
+	suite.True(id > 0)
 
 	// Verify plaintext secret has hbr_pat_ prefix
 	suite.Contains(plaintext, "hbr_pat_")
-	require.True(len(plaintext) > 8) // hbr_pat_ = 8 chars + random
+	suite.True(len(plaintext) > 8) // hbr_pat_ = 8 chars + random
 }
 
 func (suite *ControllerTestSuite) TestCreateValidatesSecretFormat() {
@@ -73,9 +71,9 @@ func (suite *ControllerTestSuite) TestCreateValidatesSecretFormat() {
 	}
 
 	id, plaintext, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 	suite.NotEmpty(plaintext)
-	require.True(suite.T(), id > 0)
+	suite.True(id > 0)
 
 	// Verify secret is secure (no obviously weak format)
 	suite.NotContains(plaintext, "admin")
@@ -92,12 +90,12 @@ func (suite *ControllerTestSuite) TestCreateWithExpiry() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Retrieve and verify expiry
 	retrieved, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), expiryTime, retrieved.ExpiresAt)
+	suite.NoError(err)
+	suite.Equal(expiryTime, retrieved.ExpiresAt)
 }
 
 func (suite *ControllerTestSuite) TestCreateNeverExpiresToken() {
@@ -108,11 +106,11 @@ func (suite *ControllerTestSuite) TestCreateNeverExpiresToken() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	retrieved, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), int64(-1), retrieved.ExpiresAt)
+	suite.NoError(err)
+	suite.Equal(int64(-1), retrieved.ExpiresAt)
 }
 
 func (suite *ControllerTestSuite) TestGetReturnsToken() {
@@ -123,13 +121,13 @@ func (suite *ControllerTestSuite) TestGetReturnsToken() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	retrieved, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), pat.UserID, retrieved.UserID)
-	require.Equal(suite.T(), pat.Name, retrieved.Name)
-	require.Equal(suite.T(), pat.Description, retrieved.Description)
+	suite.NoError(err)
+	suite.Equal(pat.UserID, retrieved.UserID)
+	suite.Equal(pat.Name, retrieved.Name)
+	suite.Equal(pat.Description, retrieved.Description)
 }
 
 func (suite *ControllerTestSuite) TestListTokensForUser() {
@@ -140,16 +138,16 @@ func (suite *ControllerTestSuite) TestListTokensForUser() {
 			Name:   "token-" + string(rune(48+i)),
 		}
 		_, _, err := suite.ctl.Create(suite.Context(), pat)
-		require.NoError(suite.T(), err)
+		suite.NoError(err)
 	}
 
 	query := q.New(q.KeyWords{"user_id": userID})
 	pats, err := suite.ctl.List(suite.Context(), query)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), 3, len(pats))
+	suite.NoError(err)
+	suite.Equal(3, len(pats))
 
 	for _, p := range pats {
-		require.Equal(suite.T(), userID, p.UserID)
+		suite.Equal(userID, p.UserID)
 	}
 }
 
@@ -162,7 +160,7 @@ func (suite *ControllerTestSuite) TestUpdateTokenMetadata() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Update
 	pat.ID = id
@@ -170,13 +168,13 @@ func (suite *ControllerTestSuite) TestUpdateTokenMetadata() {
 	pat.Disabled = true
 
 	err = suite.ctl.Update(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Verify
 	updated, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), "Updated description", updated.Description)
-	require.True(suite.T(), updated.Disabled)
+	suite.NoError(err)
+	suite.Equal("Updated description", updated.Description)
+	suite.True(updated.Disabled)
 }
 
 func (suite *ControllerTestSuite) TestDeleteToken() {
@@ -186,14 +184,14 @@ func (suite *ControllerTestSuite) TestDeleteToken() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	err = suite.ctl.Delete(suite.Context(), id)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Verify deletion
 	_, err = suite.ctl.Get(suite.Context(), id)
-	require.Error(suite.T(), err)
+	suite.Error(err)
 }
 
 func (suite *ControllerTestSuite) TestRefreshSecretGeneratesNewSecret() {
@@ -203,11 +201,11 @@ func (suite *ControllerTestSuite) TestRefreshSecretGeneratesNewSecret() {
 	}
 
 	id, originalSecret, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Refresh without providing new secret (auto-generate)
 	newSecret, err := suite.ctl.RefreshSecret(suite.Context(), id, "")
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Verify new secret is different
 	suite.NotEqual(originalSecret, newSecret)
@@ -221,13 +219,13 @@ func (suite *ControllerTestSuite) TestRefreshSecretWithProvidedSecret() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Refresh with a specific secret that passes validation
 	// (must have uppercase, lowercase, digit, and be 8-128 chars)
 	newSecret := "TestSecret123"
 	refreshedSecret, err := suite.ctl.RefreshSecret(suite.Context(), id, newSecret)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Verify the refreshed secret contains the provided value
 	suite.Contains(refreshedSecret, "TestSecret123")
@@ -240,11 +238,11 @@ func (suite *ControllerTestSuite) TestRefreshSecretInvalidFormat() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	// Try to refresh with invalid secret (no uppercase, lowercase, or digit)
 	_, err = suite.ctl.RefreshSecret(suite.Context(), id, "invalid")
-	require.Error(suite.T(), err)
+	suite.Error(err)
 }
 
 func (suite *ControllerTestSuite) TestCountTokens() {
@@ -257,13 +255,13 @@ func (suite *ControllerTestSuite) TestCountTokens() {
 			Name:   "token-" + string(rune(48+i)),
 		}
 		_, _, err := suite.ctl.Create(suite.Context(), pat)
-		require.NoError(suite.T(), err)
+		suite.NoError(err)
 	}
 
 	query := q.New(q.KeyWords{"user_id": userID})
 	count, err := suite.ctl.Count(suite.Context(), query)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), int64(expectedCount), count)
+	suite.NoError(err)
+	suite.Equal(int64(expectedCount), count)
 }
 
 func (suite *ControllerTestSuite) TestCreateGeneratesScope() {
@@ -275,10 +273,10 @@ func (suite *ControllerTestSuite) TestCreateGeneratesScope() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	retrieved, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	suite.NotEmpty(retrieved.Scope, "scope should be generated")
 	suite.Contains(retrieved.Scope, "[", "scope should be JSON array")
@@ -293,13 +291,13 @@ func (suite *ControllerTestSuite) TestScopeContainsProjectAccess() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	retrieved, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	if len(retrieved.Scope) > 2 {
-		require.True(
+		suite.True(
 			strings.Contains(retrieved.Scope, "pull") || strings.Contains(retrieved.Scope, "push"),
 			"scope should contain pull or push actions",
 		)
@@ -317,10 +315,10 @@ func (suite *ControllerTestSuite) TestCreateWithUserSuppliedScope() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	retrieved, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 	suite.NotEmpty(retrieved.Scope)
 	suite.Contains(retrieved.Scope, "project_id")
 }
@@ -335,10 +333,10 @@ func (suite *ControllerTestSuite) TestCreateWithEmptyScopeFallsBack() {
 	}
 
 	id, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 
 	retrieved, err := suite.ctl.Get(suite.Context(), id)
-	require.NoError(suite.T(), err)
+	suite.NoError(err)
 	suite.NotNil(retrieved.Scope)
 }
 
@@ -352,7 +350,7 @@ func (suite *ControllerTestSuite) TestCreateWithInvalidScopeJSON() {
 	}
 
 	_, _, err := suite.ctl.Create(suite.Context(), pat)
-	require.Error(suite.T(), err)
+	suite.Error(err)
 	suite.Contains(err.Error(), "invalid scope JSON")
 }
 

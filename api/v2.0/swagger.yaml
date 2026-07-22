@@ -9265,7 +9265,7 @@ definitions:
     enum:
       - http
       - slack
-- amqp
+      - amqp
       - discord
       - email
       - telegram
